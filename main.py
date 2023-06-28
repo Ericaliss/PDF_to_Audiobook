@@ -4,12 +4,17 @@ import pdfplumber # pip install pdfplumber
 import glob
 import os
 from pydub import AudioSegment # pip install pydub
-from mutagen.id3 import ID3, TIT2, TALB # pip install mutagen
+from mutagen.id3 import ID3, TIT2, TALB,TRCK # pip install mutagen
 from typing import Dict
 import fitz  # pip install pymupdf
 import re
 import shutil
 
+def generate_structure():
+    folders = {'pdf','pdf/split','audio','audio/compressed'}
+    for folder in folders:
+        os.makedirs(folder, exist_ok=True)
+        
 def remove_invalid_chars(string):
     # Define a regular expression pattern for characters not allowed in Windows paths
     pattern = r'[<>:"/\\|?*\r]'
@@ -23,13 +28,14 @@ def compress_mp3(input_file, output_file, bitrate='64k'):
     audio = AudioSegment.from_file(input_file)
     audio.export(output_file, format='mp3', bitrate=bitrate)
     
-def add_metadata(mp3_file, title, album):
+def add_metadata(mp3_file, title, album, track):
     # Load the MP3 file
     audio = ID3(mp3_file)
 
     # Create the title, album, and track number tags
     audio["TIT2"] = TIT2(encoding=3, text=title)
     audio["TALB"] = TALB(encoding=3, text=album)
+    audio["TRCK"] = TRCK(encoding=3, text=track)
 
     # Save the changes
     audio.save()
@@ -50,20 +56,18 @@ def get_bookmarks(filepath):
                 page_number = bookmark[2]
                 
                 if(count < len(toc)-1):
-                    next_page = toc[count+1][2]
+                    next_page = toc[count+1][2]-1
                 else:
                     next_page = len(doc)
-                    
+                
+                count = count + 1     
                 #print(f"Title: {title}, Page: {page_number}")
                 new_doc = fitz.open()
                 new_doc.insert_pdf(doc, from_page=page_number-1, to_page=next_page-1)
-                new_doc.save('pdf/split/'+filename+'_'+remove_invalid_chars(title)+'.pdf')
+                new_doc.save('pdf/split/'+filename+'_'+str(count)+'_'+remove_invalid_chars(title)+'.pdf')
             
-                count = count + 1   
-def generate_structure():
-    folders = {'pdf','pdf/split','audio','audio/compressed'}
-    for folder in folders:
-        os.makedirs('folder', exist_ok=True)
+                  
+
 
 def main():
     
@@ -110,22 +114,27 @@ def main():
             engine = pyttsx3.init()
             engine.save_to_file(finalText, input_filename)
             engine.runAndWait()
+            
+            #split = filename.split('_')
+            #print('Add metadata to : '+input_filename)
+            #add_metadata(input_filename,split[2],split[0],split[1])
         except Exception as e:
             print("Cannot generate audio : "+ file + f'{e}')
-            
-        try:
-            print('Compressing to 64k : '+input_filename)
-            compress_mp3(input_filename, output_filename, bitrate='64k')
-            os.remove(input_filename)
-        except Exception as e:
-            print("Cannot compress : "+ file + f'{e}')
-        try:
-            print('Add metadata to : '+output_filename)
-            split = filename.split('_')
-            add_metadata(output_filename,split[1],split[0])
-            print('\n')
-        except Exception as e:
-            print("Cannot add metadata : "+ file + f'{e}')
+        
+        if(True):    
+            try:
+                print('Compressing to 64k : '+input_filename)
+                compress_mp3(input_filename, output_filename, bitrate='64k')
+                os.remove(input_filename)
+            except Exception as e:
+                print("Cannot compress : "+ file + f'{e}')
+            try:
+                print('Add metadata to : '+output_filename)
+                split = filename.split('_')
+                add_metadata(output_filename,split[2],split[0],split[1])
+                print('\n')
+            except Exception as e:
+                print("Cannot add metadata : "+ file + f'{e}')
          
     
 if __name__ == "__main__":
